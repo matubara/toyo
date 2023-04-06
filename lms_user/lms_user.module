@@ -491,16 +491,26 @@ function lms_user_form_alter(&$form, FormStateInterface $form_state, $form_id) {
       ],
     ];
     //20230405HM ADD
-    $url2 = Url::fromRoute('lms_user.export_student_list2');
-    $form['actions']['export_csv2'] = [
-      '#type' => 'link',
-      '#title' => t('Export CSV2'),
-      '#weight' => 12,
-      '#url' => $url2,
-      '#attributes' => [
-        'class' => ['button'],
-      ],
-    ];
+    // 現在のユーザーを取得.
+    $user = \Drupal::currentUser();
+    $account = $user->getAccount();
+    $accountrole = $account->getRoles(TRUE);
+    $accountname = $account->getAccountName();
+    //    if ($user->hasPermission('display xxx')) {
+//      // 処理.
+//    }
+    if($accountname == 'admin') {
+      $url2 = Url::fromRoute('lms_user.export_student_list2');
+      $form['actions']['export_csv2'] = [
+        '#type' => 'link',
+        '#title' => t('Export CSV2'),
+        '#weight' => 12,
+        '#url' => $url2,
+        '#attributes' => [
+          'class' => ['button'],
+        ],
+      ];
+    }
   }
 
   _admin_restriction($form, $form_state, $form_id);
@@ -1191,6 +1201,10 @@ function _member_id_sql($user = FALSE) {
     ->query($sql)
     ->fetchField();
   $result = substr($result, 2);
+  //20230406HM ADD
+  if($result==""){
+    $result=0;
+  }
   $offset = $result + 1;
   $fulloffset = str_pad($offset, 5, '0', \STR_PAD_LEFT);
 
