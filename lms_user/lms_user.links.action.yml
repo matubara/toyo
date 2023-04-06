@@ -1,0 +1,11 @@
+entity.user_course.add_form:
+  route_name: entity.user_course.add_form
+  title: 'Add Course'
+  appears_on:
+    - entity.user_course.collection
+
+entity.user_class.add_form:
+  route_name: entity.user_class.add_form
+  title: 'Add Class'
+  appears_on:
+    - entity.user_class.collection

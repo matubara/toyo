@@ -1,0 +1,10 @@
+<h1>{{ 'Post Survey'|t }}</h1>
+
+{% if message != null %}
+    <p>{{ message }}</p>
+{% endif %}
+
+<div class="actions">
+    <a href="{{ url('<front>') }}">{{ 'Go to top page' }}</a>
+    <a href="{{ url('<front>') }}">{{ 'Go to member dashboard' }}</a>
+</div>

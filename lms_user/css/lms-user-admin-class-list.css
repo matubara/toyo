@@ -1,0 +1,4 @@
+body.path-admin .admin-class-list form .form-actions[id="edit-actions"] .btn-download-csv {
+    width: 100%;
+    text-align: center;
+}

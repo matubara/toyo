@@ -1,0 +1,37 @@
+lms_user:
+  js:
+    js/lms_user_register.js: {}
+  dependencies:
+    - core/jquery
+    - core/jquery.once
+    - core/drupalSettings
+
+lms_user.class_list:
+  css:
+    theme:
+      css/lms-user-admin-class-list.css: {}
+
+lms_user_webform_post_survey:
+  js:
+    js/webform_questionnaire_after_attendance.js: {}
+  dependencies:
+    - core/jquery
+    - core/jquery.once
+    - core/drupalSettings
+
+lms_user_override_webform_progress:
+  js:
+    js/lms_user_override_webform_progress.js: {}
+  dependencies:
+    - core/jquery
+    - core/jquery.once
+    - core/drupalSettings
+
+lms_user_login:
+  js:
+    js/lms_user_login.js: {}
+  dependencies:
+    - core/jquery
+    - core/jquery.once
+    - core/drupal
+    - core/drupalSettings

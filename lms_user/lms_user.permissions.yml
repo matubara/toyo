@@ -1,0 +1,6 @@
+access pre-survey:
+  title: 'Access pre-survey'
+  description: 'Check user before survey.'
+
+administer csv_import_user_course_log entity:
+  title: Administer CSV Import User Course Log settings

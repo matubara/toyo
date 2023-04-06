@@ -1,0 +1,92 @@
+# Schema for the configuration files of the lms_user module.
+lms_user.settings:
+  label: 'Lms_user strings'
+  type: config_object
+  mapping:
+    example:
+      label: 'Example'
+      type: text
+      translatable: true
+    member_id_index:
+      label: 'Member ID Increment Index'
+      type: text
+    password_tutorial:
+      label: 'Password tutorial'
+      type: text_format
+      translatable: true
+    presurvey_tutorial:
+      label: 'Pre-survey tutorial'
+      type: text_format
+      translatable: true
+    presurveydone_tutorial:
+      label: 'Pre-survey done tutorial'
+      type: text_format
+      translatable: true
+    usercourses_tutorial:
+      label: 'User courses tutorial'
+      type: text_format
+      translatable: true
+    cart_help1:
+      label: 'Cart help1'
+      type: text_format
+      translatable: true
+    cart_help3:
+      label: 'Cart help3'
+      type: text_format
+      translatable: true
+    cart_help2:
+      label: 'Cart help2'
+      type: text_format
+      translatable: true
+    checkout_steps:
+      label: 'Checkout steps'
+      type: text_format
+      translatable: true
+    order_help1:
+      label: 'Order Help 1'
+      type: text_format
+      translatable: true
+    order_help2:
+      label: 'Order help 2'
+      type: text_format
+      translatable: true
+    transition_changed_canceled_subject:
+      label: 'Transition changed cancelled subject'
+      type: text
+      translatable: true
+    transition_changed_canceled_body:
+      label: 'Transition changed cancelled body'
+      type: text_format
+      translatable: true
+    admin_transition_changed_canceled_subject:
+      label: '[Admin] Transition changed cancelled subject'
+      type: text
+      translatable: true
+    admin_transition_changed_canceled_body:
+      label: '[Admin] Transition changed cancelled body'
+      type: text_format
+      translatable: true
+    manual_order_subject:
+      label: 'Manual order subject'
+      type: text
+      translatable: true
+    manual_order_body:
+      label: 'Manual order body'
+      type: text_format
+      translatable: true
+    auto_order_subject:
+      label: 'Auto order subject'
+      type: text
+      translatable: true
+    auto_order_body:
+      label: 'Auto order body'
+      type: text_format
+      translatable: true
+    admin_auto_order_subject:
+      label: '[Admin] Auto order subject'
+      type: text
+      translatable: true
+    admin_auto_order_body:
+      label: '[Admin] Auto order body'
+      type: text_format
+      translatable: true

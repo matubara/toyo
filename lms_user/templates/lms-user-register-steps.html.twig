@@ -1,0 +1,22 @@
+<div class="lms-user-register">
+    <span class="form_title">{{ 'Registration form' |t }}</span>
+</div>
+{% if steps is not null %}
+    <div class="lms-user-register-step">
+        <div class="step-1{% if steps == "information" %} active{% endif %}{% if number_step > 1 %} completed{% endif %}">
+            <span>{{ steps_options[1] |raw }}</span>
+        </div>
+        <div class="icon"> >>></div>
+        <div class="step-2{% if steps == "review" %} active{% endif %}{% if number_step > 2 %} completed{% endif %}">
+            <span>{{ steps_options[2]|raw }}</span>
+        </div>
+        <div class="icon">>>></div>
+        <div class="step-3{% if steps == "send-verification-email" %} active{% endif %}{% if number_step > 3 %} completed{% endif %}">
+            <span>{{ steps_options[3] |raw }}</span>
+        </div>
+        <div class="icon"> >>></div>
+        <div class="step-4{% if number_step >= 4 %} active{% endif %}">
+            <span>{{ steps_options[4] |raw }}</span>
+        </div>
+    </div>
+{% endif %}

@@ -1,0 +1,82 @@
+<div class="user-page user-dashboard">
+    <div class="user-page-header">
+        <div class="title">
+<span class="honorific">{{ "Member ID" | t }} {{account.field_member_id.0.value}}</span>
+{{ account.field_full_name.getString }}&nbsp;<span>{{ "Mr."|t }}</span></div>
+        <div class="action"><a href="{{ edit_profile_url }}"><i
+                        class="edit-icon"></i>{{ 'Edit membership information'|t }}</a></div>
+    </div>
+    <div class="mod-button_box has-pc-right">
+      <a href="{{ how_to_url }}" class="mod-button is-size-small mod-ml-10"><span class="mod-button_inner"><span class="mod-remix ri-question-line"></span>{{ 'How to use the membership page'|t }}</span></a>
+    </div>
+    <div class="user-page-wrapper">
+        <div class="title">{{ 'List of courses applied for' |t }}</div>
+        {% if flag_pre==false %}
+          {{ drupal_config('lms_user.settings', 'presurvey_tutorial').value | raw }}
+        {% else %}
+          {{ drupal_config('lms_user.settings', 'presurveydone_tutorial').value | raw }}
+        {% endif %}
+        <div class="list-class">
+            {% for key, user_class in user_classes %}
+                {% set class = user_class.class.entity %}
+                <div class="class-item">
+                    <div class="class-item-image">
+                        {% if (class.field_image.entity.uri.value) %}<img src="{{ file_url(class.field_image.entity.uri.value) }}">{% endif %}
+                    </div>
+                    <div class="class-item-info">
+                        <div class="class-name">{{ title_class['title_' ~ key] }}</div>
+                        <div class="date-of-class">
+                            <span>{{ "【Holding period】"|t }}</span>
+                            {% set response = get_date_format( class.field_period) %}
+                            <span class="start-date">
+                                {{ response.start_date }}
+                            </span>
+                            <span class="period-separator "> ~ </span>
+                            <span class="end-date">
+                                {{ response.end_date }}
+                          </span>
+                        </div>
+                        {% if is_submitted_pre_survey(class, account)==false %}
+                            <div class="notice">{{ '*Once you answer the pre-questionnaire, you will be able to attend the lecture.' |t }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="class-item-button">
+                        {% if is_submitted_pre_survey(class, account)==false %}
+                            <div class="message">
+                                {% set url = path('lms_user.class_presurvey', {'user_class': user_class.id()}) %}
+                                {% if class.field_pre_survey.status=='open' %}
+                                    <a class="button-answer-questionnaire"
+                                       href="{{ url }}">{{ 'Answer the pre-questionnaire' |t }}</a>
+                                {% elseif class.field_pre_survey.status=='closed' %}
+                                    <a class="button-answer-questionnaire" onclick="return false;"
+                                       class="disabled">{{ 'Answer the pre-questionnaire' |t }}</a>
+                                {% elseif class.field_pre_survey.status=='scheduled' %}
+                                    {% if date(class.field_pre_survey.close).timestamp > date().timestamp and date(class.field_pre_survey.open).timestamp < date().timestamp %}
+                                        <a class="button-answer-questionnaire"
+                                           href="{{ url }}">{{ 'Answer the pre-questionnaire' |t }}</a>
+                                    {% else %}
+                                        <a class="button-answer-questionnaire"
+                                           href="{{ url }}"
+                                           onclick="return false;"
+                                           class="disabled">{{ 'Answer the pre-questionnaire' |t }}</a>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <div class="message">
+                                <a href="{{ url('lms_user.courses', {'user_class': user_class.id()}) }}">
+                                    <span>{{ 'List of applied courses' |t }}</span>
+                                    <i class="list-course-icon"></i>
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        <div class="dashboard-bottom-button">
+            <div class="class-list"><a href="{{ find_class_link }}"><i
+                            class="course-class-icon"></i>{{ 'Find another course'|t }}</a></div>
+        </div>
+    </div>
+</div>

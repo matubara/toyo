@@ -1,0 +1,15 @@
+uuid: 8e7d6191-bfff-4af4-87fa-b993ffcd25aa
+langcode: ja
+status: true
+dependencies: {  }
+name: image_800x800
+label: Image(800x800)
+effects:
+  ea5565c6-5383-4132-bb3d-f7304fb69c0f:
+    uuid: ea5565c6-5383-4132-bb3d-f7304fb69c0f
+    id: image_scale_and_crop
+    weight: 1
+    data:
+      width: 800
+      height: 800
+      anchor: center-center

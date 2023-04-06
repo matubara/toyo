@@ -1,0 +1,109 @@
+<div class="student-detail">
+    <div class="field field-full-name">
+        <span class="field__label">{{ "Member ID"|t  ~ ":" }}</span>
+        <span class="field__item">{{ user.field_member_id.value }}</span>
+    </div>
+
+    <div class="field field-full-name">
+        <span class="field__label">{{ "Full name"|t  ~ ":" }}</span>
+        <span class="field__item">{{ user.field_full_name.value }}</span>
+    </div>
+
+    <div class="field field-pronounce-name">
+        <span class="field__label">{{ "Pronounce name"|t ~ ":" }}</span>
+        <span class="field__item">{{ user.field_pronounce_name.value }}</span>
+    </div>
+    <div class="field field-email">
+        <span class="field__label">{{ "Email address"|t ~ ":" }}</span>
+        <span class="field__item">{{ user.mail.value }}</span>
+    </div>
+    <div class="field field-birthday">
+        {% if user.field_birthday.value %}
+            <span class="field__label">{{ "Birthday"|t ~ ":" }}</span>
+            <span class="field__item">
+            {{ '@year year @month month @day day'|t({
+                '@year': user.field_birthday.value|date(format='Y'),
+                '@month':user.field_birthday.value|date(format='m'),
+                '@day': user.field_birthday.value|date(format='d'),
+            }) }}
+            </span>
+        {% endif %}
+    </div>
+
+    <div class="field field--name-field-gender field--type-list-string field--label-above">
+        <span class="field__label">{{ "Gender"|t ~ ":" }}</span>
+        <span class="field__item">{{ allowed_values.field_gender[user.field_gender.value]  }} </span>
+    </div>
+
+    <div class="field field-nation">
+        <span class="field__label">{{ "Country/region of origin"|t ~ ":" }}</span>
+        <span class="field__item">{{ country }} </span>
+    </div>
+
+
+    <div class="user-page user-courses">
+        <div class="course-title">{{ 'List of application courses'|t }}</div>
+        <div class="user-page-wrapper">
+            <div class="info">
+                <span>{{ 'All @number_of_course courses'|t({'@number_of_course': user_courses|length}) }}</span></div>
+            <div class="course-items">
+                {% for key, user_course in user_courses %}
+                    {% set course = user_course.course.entity %}
+                    <div class="item">
+                        <div class="course-item-image">
+                            <div class="course-status">
+                              <span class="course-status__{{ course_status(course, 'plain', user) }}">
+                                {{ course_status(course, 'text', user) }}
+                              </span>
+                            </div>
+                            <div class="course-date-time">
+                                <div class="course-date-time-format"><span>
+                                  {{ '@year year @month month @day day'|t({
+                                      '@year': course.field_application_acceptance_per.value|date(format='Y'),
+                                      '@month': course.field_application_acceptance_per.value|date(format='m'),
+                                      '@day': course.field_application_acceptance_per.value|date(format='d'),
+                                  }) }} ({{ course.field_application_acceptance_per.value|date(format='l')|t }})
+                                </span></div>
+                                <div class="course-time-format"><span>{{ '@hour:@min @period ~ @hour_end:@min_end @period_end'|t({
+                                            '@hour' :course.field_day_of_the_event.value|date(format='h'),
+                                            '@min' :course.field_day_of_the_event.value|date(format='i'),
+                                            '@period':course.field_day_of_the_event.value|date(format='A'),
+                                            '@hour_end':course.field_day_of_the_event.end_value|date(format='h'),
+                                            '@min_end':course.field_day_of_the_event.end_value|date(format='i'),
+                                            '@period_end':course.field_day_of_the_event.end_value|date(format='A'),
+                                        }) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="course-tags">
+                            <span class="mod-icon mod-icon-course">{{ course.field_course_theme.entity.label() }}</span>
+                            <span class="mod-icon mod-icon-course">{{ course.field_course_type.entity.label() }}</span>
+                        </div>
+                        <div class="course-professor">
+                            <div class="course-professor-name">{{ course.field_professor.entity.label() }}</div>
+                            <div class="course-professor-department">{{ course.field_professor.entity.field_professor_department_name.value }}</div>
+                        </div>
+                        <div class="course-info">
+                            <div class="course-name">{{ title_course['title_' ~ user_course.id()] }}</div>
+                        </div>
+                        <div class="course-actions">
+                            <div class="course-fee">
+                                {% if course.field_fee.entity.name.value %}
+                                    <div class="course-fee">{{ course.field_fee.entity.label() }}</div>
+                                {% else %}
+                                    <div class="course-fee">{{ 'Fee'|t }}</div>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <a href="{{ url('entity.commerce_product.canonical', { 'commerce_product': course.id()}) }}">
+                                    {{ 'See details'|t }}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+</div>

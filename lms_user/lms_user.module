@@ -1,0 +1,1465 @@
+<?php
+
+/**
+ * @file
+ * Contains hook, global functions, ...
+ */
+
+use Drupal\Component\Serialization\Json;
+use Drupal\Core\Cache\RefinableCacheableDependencyInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Url;
+use Drupal\lms_commerce\CourseManager;
+use Drupal\lms_commerce\CourseStatusInterface;
+use Drupal\lms_user\Entity\UserCourseInterface;
+use Drupal\user\Entity\User;
+use Drupal\user\UserInterface;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Drupal\commerce_product\Entity\Product;
+use Drupal\node\Entity\Node;
+use Drupal\Component\Render\FormattableMarkup;
+use Drupal\lms_user\Entity\UserCourse;
+use Drupal\commerce_order\Entity\Order;
+use Drupal\webform\Entity\Webform;
+use Drupal\Core\Entity\EntityTypeInterface;
+
+/**
+ * Implements hook_theme().
+ */
+function lms_user_theme($existing, $type, $theme, $path) {
+  return [
+    'lms_user_dashboard' => [
+      'variables' => [
+        'account' => NULL,
+        'find_class_link' => NULL,
+        'user_classes' => NULL,
+        'edit_profile_url' => NULL,
+        'title_class' => NULL,
+        'flag_pre' => NULL,
+        'how_to_url' => NULL,
+      ],
+    ],
+    'lms_user_courses' => [
+      'variables' => [
+        'user_class' => NULL,
+        'user_courses' => NULL,
+        'course_time' => NULL,
+        'title_course' => NULL,
+        'title_class' => NULL,
+      ],
+    ],
+    'lms_user_post_survey_message' => [
+      'variables' => [
+        'account' => NULL,
+        'user_course' => NULL,
+        'message' => NULL,
+      ],
+    ],
+    'lms_user_pre_survey_message' => [
+      'variables' => [
+        'account' => NULL,
+        'user_course' => NULL,
+        'message' => NULL,
+      ],
+    ],
+    'lms_user_register_steps' => [
+      'variables' => [
+        'steps' => NULL,
+        'number_step' => NULL,
+        'steps_options' => NULL,
+        'langcode' => NULL,
+      ],
+    ],
+    'lms_user_register_templates' => [
+      'render element' => 'form',
+    ],
+    'lms_user_edit_profile_templates' => [
+      'render element' => 'form',
+    ],
+    'lms_student_detail' => [
+      'variables' => [
+        'user' => NULL,
+        'user_courses' => NULL,
+        'title_course' => NULL,
+        'allowed_values' => [],
+        'country' => NULL,
+      ],
+    ],
+  ];
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_insert().
+ */
+function lms_user_webform_submission_insert(EntityInterface $submission) {
+  $currentUser = Drupal::currentUser();
+  $user = User::load($currentUser->id());
+  $lmsWebform = Drupal::service('lms_mail.lms_webform');
+  /** @var \Drupal\webform\WebformSubmissionInterface $submission */
+  $webform = $submission->getWebform();
+  $route = Drupal::routeMatch()->getRouteName();
+
+  // Put to cancel_request of order
+  _update_order_state_to_cr($submission);
+
+  if ($route === 'lms_user.class_presurvey') {
+    Drupal::service('lms_user.manager')->addClassPreSurvey($submission);
+
+    if ($submission->get('entity_id')->getValue()) {
+      $resultToUser = $lmsWebform->sendPreSurvey($user, $submission, $user->getEmail());
+
+      if (!$resultToUser) {
+        Drupal::messenger()->addError(t("Error: Can't send mail for confirm submission survey"));
+      }
+      $resultToAdmin = $lmsWebform->sendPreSurveyToAdmin($submission);
+
+      if (!$resultToAdmin) {
+        Drupal::logger('webform_submission')->error(t("Can\'t send mail presurvey detail to admin"));
+      }
+    }
+  }
+  elseif ($route === 'lms_user.course_postsurvey') {
+    $session = Drupal::request()->getSession();
+    $session->set('submit_post_survey_complete', 1);
+    Drupal::service('lms_user.manager')->addCoursePostSurvey($submission);
+
+    if ($submission->get('entity_id')->getValue()) {
+      $resultToUser = $lmsWebform->sendPostSurvey($user, $submission, $user->getEmail());
+
+      if (!$resultToUser) {
+        Drupal::messenger()->addError(t("Error: Can't send mail for confirm submission survey"));
+      }
+      $resultToAdmin = $lmsWebform->sendPostSurveyToAdmin($submission);
+
+      if (!$resultToAdmin) {
+        Drupal::logger('webform_submission')->error(t("Can't send mail presurvey detail to admin"));
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_user_entity_operation_alter().
+ */
+function lms_user_entity_operation_alter(array &$operations, EntityInterface $entity) {
+  $entityTypeId = $entity->getEntityTypeId();
+  if ($entityTypeId === 'webform') {
+    if ($operations['duplicate'] ?? FALSE) {
+      $item = Url::fromRoute(
+        'entity.webform.duplicate_form',
+        ['webform' => $entity->id()],
+        [
+          'language' => \Drupal::languageManager()->getLanguage('en'),
+          'query' => [
+            'destination' => Url::fromRoute('entity.webform.collection')->toString(),
+          ],
+        ]
+      );
+      $operations['duplicate']['url'] = $item;
+    }
+  }
+}
+
+/**
+ * Implements hook_entity_operation().
+ */
+function lms_user_entity_operation(EntityInterface $entity) {
+  $operations = [];
+
+  if ($entity instanceof UserCourseInterface && $entity->access('delete')) {
+    $operations['cancel'] = [
+      'title' => t('Cancel'),
+      'url' => $entity->toUrl('cancel-form'),
+
+      'query' => \Drupal::service('redirect.destination')->getAsArray(),
+      'weight' => 20,
+    ];
+  }
+
+  $entityTypeId = $entity->getEntityTypeId();
+  if ($entityTypeId === 'webform_submission') {
+    if ($entity->get('webform_id')->getValue()[0]['target_id'] === 'cancel_course' && ($state_url = submission_to_state($entity))) {
+      $operations['update_state'] = [
+        'title' => t('Update payment status'),
+        'weight' => 20,
+        'url' => $state_url,
+      ];
+    }
+  }
+  return $operations;
+}
+
+/**
+ * Implements hook_preprocess_page().
+ */
+function lms_user_preprocess_page(&$variables) {
+  $routeMatch = Drupal::routeMatch();
+
+  if ($routeMatch->getRouteName() === 'entity.commerce_product.canonical') {
+    /** @var \Drupal\commerce_product\Entity\ProductInterface $course */
+    $course = $routeMatch->getParameter('commerce_product');
+
+    /** @var \Drupal\lms_commerce\CourseManagerInterface $courseManager */
+    $courseManager = Drupal::service('lms_commerce.course_manager');
+    $courseStatus = $courseManager->getCourseStatus($course);
+
+    $blocks = [
+      'default' => ['lms_theme_local_tasks', 'lms_theme_help', 'lms_theme_local_actions', 'lms_theme_content'],
+      CourseStatusInterface::RECRUITING => ['views_block__lms_course_detail_block_1', 'views_block__lms_course_list_block_3'],
+      CourseStatusInterface::CLOSED => ['views_block__lms_course_detail_block_2', 'views_block__lms_course_list_block_4'],
+      CourseStatusInterface::APPLIED => ['views_block__lms_course_detail_block_3', 'views_block__lms_course_list_block_4'],
+      CourseStatusInterface::FINISHED => ['views_block__lms_course_detail_block_4', 'views_block__lms_course_list_block_1'],
+      CourseStatusInterface::COMPLETED => ['views_block__lms_course_detail_block_5', 'views_block__lms_course_list_block_1'],
+    ];
+
+    $s = CourseManager::handleStatus('blocks', compact(['blocks']), TRUE);
+
+    if ($s !== -1) {
+      $blocks = $s;
+    }
+
+    $newContentBlocks = [];
+
+    foreach ($variables['page']['content'] as $key => $data) {
+      if (strpos($key, '#') === 0 || in_array($key, $blocks['default'], TRUE) || in_array($key, $blocks[$courseStatus], TRUE)) {
+        $newContentBlocks[$key] = $data;
+      }
+    }
+
+    if ($newContentBlocks) {
+      $variables['page']['content'] = $newContentBlocks;
+    }
+  }
+
+  if ($routeMatch->getRouteName() === 'entity.webform.canonical') {
+    /** @var \Drupal\webform\Entity\Webform $webform */
+    $webform = Drupal::routeMatch()->getParameter('webform');
+
+    if ($webform->id() === 'contact_us') {
+      $messenger = Drupal::messenger();
+      $messages = $messenger->all();
+      $messenger->deleteByType('error');
+    }
+  }
+  elseif (
+    $routeMatch->getRouteName() === 'user.login' ||
+    $routeMatch->getRouteName() === 'user.pass' ||
+    $routeMatch->getRouteName() === 'lms_user.edit_profile'
+  ) {
+    $messenger = Drupal::messenger();
+    $messenger->deleteByType('error');
+  }
+  elseif ($routeMatch->getRouteName() === 'lms_user.register') {
+    $messenger = Drupal::messenger();
+    $messenger->deleteByType('error');
+  }
+  elseif ($routeMatch->getRouteName() === 'lms_user.course_postsurvey') {
+    $messenger = Drupal::messenger();
+    $messenger->deleteByType('error');
+  }
+  elseif ($routeMatch->getRouteName() === 'lms_user.class_presurvey') {
+    $messenger = Drupal::messenger();
+    $messenger->deleteByType('error');
+  }
+}
+
+function _update_order_state_to_cr($submission) {
+  $webform = $submission->getWebform();
+  if ($webform->id() !== 'cancel_course') {
+    return;
+  }
+
+  $item = $submission->getData();
+  $user_course = $item['user_course'];
+  $entity = $user_course = UserCourse::load($user_course);
+  $transition_id = $entity->get('state')[0] ? $entity->get('state')[0]->getValue()['value'] : 'paid';
+  if ($transition_id !== 'cancel_request') {
+    $user_course->set('state', 'cancel_requested');
+    $user_course->save();
+  }
+
+  // Auto jump if price is 0
+  $courses = $user_course->get('course')->referencedEntities();
+  $item = $course = reset($courses);
+  $item = $item->getVariations();
+  $item = reset($item);
+  if ((float) $item->get('price')->getValue()[0]['number'] === (float) 0) {
+    $user_course->set('state', 'canceled');
+    $user_course->save();
+  }
+}
+
+function hide_locale($form, &$form_state) {
+  if ($form['source_langcode'] ?? FALSE) {
+    $form['source_langcode']['#access'] = FALSE;
+  }
+  return $form;
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function lms_user_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $form['#after_build'][] = 'hide_locale';
+  if ($form_id === 'user_login_form') {
+    $form['wrapper'] = [
+      '#type' => 'container',
+      '#attributes' => [
+        'id' => 'user-login-wrapper',
+        'class' => ['user-login-wrapper'],
+      ],
+    ];
+    $form['name']['#title'] = t('Email address');
+    $form['name']['#required'] = FALSE;
+    $form['name']['#description'] = '';
+    $form['pass']['#description'] = '';
+    $form['pass']['#required'] = FALSE;
+    $form['wrapper']['name'] = $form['name'];
+    $form['wrapper']['pass'] = $form['pass'];
+    $form['wrapper']['actions'] = $form['actions'];
+    $form['wrapper']['actions']['submit']['#attributes'] = [
+      'class' => ['button-login'],
+      'data-twig-suggestion' => 'login_submit',
+    ];
+    $form['#validate'][] = '_lms_user_validate_login';
+    $form['link_pass']['#markup'] = '<u><a href="' . Url::fromRoute('user.pass')->toString() . '"> ' . t('Forgot your password') . '</a></u>';
+    $form['#attached']['library'][] = 'lms_user/lms_user_login';
+    $form['actions']['submit']['#attributes'] = [
+      'class' => ['button-login'],
+      'data-twig-suggestion' => 'login_submit',
+    ];
+    unset($form['name'], $form['pass'], $form['actions']);
+  }
+  elseif ($form_id === 'user_pass') {
+    $form['notice']['#markup'] = '<p>' . t('Password reset instructions will be sent to your registered email address.') . '</p>';
+    $form['wrapper'] = [
+      '#type' => 'container',
+      '#attributes' => [
+        'id' => 'user-pass-wrapper',
+        'class' => ['user-pass-wrapper'],
+      ],
+    ];
+    $form['name']['#title'] = t('Email address');
+    $form['name']['#required'] = FALSE;
+    $form['wrapper']['name'] = $form['name'];
+    $form['actions']['submit']['#value'] = t('Submit with this information');
+    $form['wrapper']['actions'] = $form['actions'];
+    unset($form['name'], $form['actions'], $form['mail']);
+
+    $form['#validate'][] = '_lms_user_validate_reset';
+    $form['#attached']['library'][] = 'lms_user/lms_user_login';
+    array_shift($form['#submit']);
+    $form['#submit'][] = '_lms_submit_reset_password';
+  }
+  elseif ($form_id === 'views_exposed_form' && $form['#id'] === 'views-exposed-form-content-class-list-page-1') {
+    $form['actions']['submit'][] = [
+      '#prefix' => '<div class="btn-filter">',
+      '#suffix' => '</div>',
+    ];
+    $form['actions']['download_csv'] = [
+      '#type' => 'submit',
+      '#name' => 'download-csv-class-list',
+      '#prefix' => '<div class="btn-download-csv">',
+      '#suffix' => '</div>',
+      '#value' => t('Download CSV'),
+      '#submit' => ['lms_user_download_csv_redirect'],
+    ];
+    $form['#attached']['library'][] = 'lms_user/lms_user.class_list';
+  }
+  elseif ($form_id === 'user_pass_reset') {
+    $uid = Drupal::routeMatch()->getParameter('uid');
+    $user = User::load($uid);
+    $markup =
+      '<div class="user_reset_pass_message"><p>' .
+      t('This is the page for resetting the One Time Password of <span>@email</span>.', ['@email' => $user->getEmail()]) .
+      '</p>';
+    $markup .= '<p>' . t('Please click on the membership information editing button below to change your password.') . '</p>';
+    $markup .= '<p>' . t('This is the only time you can edit your password using this page.') . '</p></div>';
+    $form['message'] = ['#markup' => $markup];
+    $form['#title'] = t('Reset password');
+    $form['actions']['submit']['#value'] = t('Edit member information');
+    $form['actions']['submit']['#attributes'] = [
+      'class' => ['button-edit-profile'],
+      'data-twig-suggestion' => 'user_pass_reset_submit',
+    ];
+    unset($form['help']);
+  }
+  elseif (webform_base_form($form['#webform_id'] ?? '') === 'pre_questionnaire') {
+    $question_1 = $form['elements']['input']['how_i_learned_about_the_course_group']['how_i_learned_about_the_course']['#options'];
+    $question_2 = $form['elements']['input']['motivation_for_applying_for_a_course_group']['motivation_for_application']['#options'];
+    $question_3 = $form['elements']['input']['past_course_attendance_history_group']['past_course_attendance_history']['#options'];
+
+    $markup_question_1 = $form['elements']['review']['how_i_learned_about_the_course_review']['markup_05']['#markup'];
+    $markup_question_2 = $form['elements']['review']['motivation_for_applying_for_a_course_review']['markup_06']['#markup'];
+    $markup_question_3 = $form['elements']['review']['past_course_attendance_history_review']['markup_07']['#markup'];
+    $markup_05 = '';
+
+    foreach ($question_1 as $question) {
+      if (strpos($markup_question_1, $question) !== FALSE) {
+        $markup_05 .= $question;
+        $markup_05 .= '<br>';
+        $markup_question_1 = str_replace($question . ',', '', $markup_question_1);
+        $markup_question_1 = str_replace($question, '', $markup_question_1);
+      }
+    }
+
+    if (strlen($markup_question_1) > 0) {
+      $markup_05 .= $markup_question_1;
+
+      if (strpos($markup_05, '<br>') === FALSE) {
+        $markup_05 .= '<br>';
+      }
+    }
+
+    if (strlen($markup_05) > 0) {
+      $form['elements']['review']['how_i_learned_about_the_course_review']['markup_05']['#markup'] = $markup_05;
+    }
+
+    $markup_06 = '';
+
+    foreach ($question_2 as $question) {
+      if (strpos($markup_question_2, $question) !== FALSE) {
+        $markup_06 .= $question;
+        $markup_06 .= '<br>';
+        $markup_question_2 = str_replace($question . ',', '', $markup_question_2);
+        $markup_question_2 = str_replace($question, '', $markup_question_2);
+      }
+    }
+
+    if (strlen($markup_question_2) > 0) {
+      $markup_06 .= $markup_question_2;
+
+      if (strpos($markup_06, '<br>') === FALSE) {
+        $markup_06 .= '<br>';
+      }
+    }
+
+    if (strlen($markup_06) > 0) {
+      $form['elements']['review']['motivation_for_applying_for_a_course_review']['markup_06']['#markup'] = $markup_06;
+    }
+
+    $markup_07 = '';
+
+    foreach ($question_3 as $question) {
+      if (strpos($markup_question_3, $question) !== FALSE) {
+        $markup_07 .= $question;
+        $markup_07 .= '<br>';
+        $markup_question_3 = str_replace($question . ',', '', $markup_question_3);
+        $markup_question_3 = str_replace($question, '', $markup_question_3);
+      }
+    }
+
+    if (strlen($markup_question_3) > 0) {
+      $markup_07 .= $markup_question_3;
+
+      if (strpos($markup_07, '<br>') === FALSE) {
+        $markup_07 .= '<br>';
+      }
+    }
+
+    if (strlen($markup_07) > 0) {
+      $form['elements']['review']['past_course_attendance_history_review']['markup_07']['#markup'] = $markup_07;
+    }
+    $form['actions']['wizard_next']['#attributes'] = [
+      'class' => ['btn-next'],
+      'data-twig-suggestion' => 'presurvey_next_submit',
+    ];
+    $contactus_progress = [t('Input <br class="sp-only">'), t('Review <br class="sp-only">'), t('Completed <br class="sp-only">')];
+    $form['#attached']['drupalSettings']['form_progress'] = $contactus_progress;
+    $form['#attached']['library'][] = 'lms_user/lms_user_override_webform_progress';
+  }
+  elseif (webform_base_form($form['#webform_id'] ?? '') === 'questionnaire_after_attendance') {
+    $form['actions']['wizard_next']['#attributes'] = [
+      'class' => ['btn-next'],
+      'data-twig-suggestion' => 'postsurvey_next_submit',
+    ];
+    $contactus_progress = [t('Input <br class="sp-only">'), t('Review <br class="sp-only">'), t('Completed <br class="sp-only">')];
+    $form['#attached']['drupalSettings']['form_progress'] = $contactus_progress;
+    $form['#attached']['library'][] = 'lms_user/lms_user_override_webform_progress';
+  }
+  elseif ($form['#id'] == 'views-exposed-form-student-management-page-1') {
+    $url = Url::fromRoute('lms_user.export_student_list');
+    $form['actions']['export_csv'] = [
+      '#type' => 'link',
+      '#title' => t('Export CSV'),
+      '#weight' => 12,
+      '#url' => $url,
+      '#attributes' => [
+        'class' => ['button'],
+      ],
+    ];
+    //20230405HM ADD
+    $url2 = Url::fromRoute('lms_user.export_student_list2');
+    $form['actions']['export_csv2'] = [
+      '#type' => 'link',
+      '#title' => t('Export CSV2'),
+      '#weight' => 12,
+      '#url' => $url2,
+      '#attributes' => [
+        'class' => ['button'],
+      ],
+    ];
+  }
+
+  _admin_restriction($form, $form_state, $form_id);
+  _contact_us_fixes($form, $form_state);
+  _cancel_request_fixes($form, $form_state);
+}
+
+function _lms_submit_reset_password(&$form, FormStateInterface $form_state) {
+  /** @var \Drupal\Core\Language\LanguageManagerInterface $languageManager */
+  $languageManager = Drupal::service('language_manager');
+  $langcode = $languageManager->getCurrentLanguage()->getId();
+
+  $values = $form_state->getValues();
+  $users = Drupal::entityTypeManager()
+    ->getStorage('user')
+    ->loadByProperties(['mail' => $values['name']]);
+  $account = reset($users);
+  // Buggy
+  // $account = $form_state->getValue('account');
+  // Mail one time login URL and instructions using current language.
+  $mail = _user_mail_notify('password_reset', $account, $langcode);
+
+  if (!empty($mail)) {
+    Drupal::logger('user')->notice('Password reset instructions mailed to %name at %email.', [
+      '%name' => $account->getAccountName(),
+      '%email' => $account->getEmail(),
+    ]);
+  }
+  $form_state->setRedirect('lms_user.password.completed');
+}
+
+function _lms_user_validate_login(&$form, FormStateInterface $form_state) {
+  $errors = $form_state->getErrors();
+  $error = reset($errors);
+  $form['#attached']['drupalSettings']['error'] = t('Unrecognized username or password.');
+
+  if ($error) {
+    $form_state->clearErrors();
+    $form_state->setErrorByName('edit', t('Error'));
+  }
+}
+
+function _lms_user_validate_reset(&$form, FormStateInterface $form_state) {
+  $values = $form_state->getValues();
+  $errors = $form_state->getErrors();
+  $error = reset($errors);
+  $users = Drupal::entityTypeManager()
+    ->getStorage('user')
+    ->loadByProperties(['mail' => $values['name']]);
+  $account = reset($users);
+
+  if ($error || !$account) {
+    if ($values['name'] && !$account) {
+      $form['#attached']['drupalSettings']['error'] = t('This email address is not registered.');
+    }
+    else {
+      $form['#attached']['drupalSettings']['error'] = t('There is an error in your input.');
+    }
+    $form_state->clearErrors();
+    $form_state->setErrorByName('edit', t('Error'));
+  }
+}
+
+/**
+ * Implements hook_preprocess_menu_local_task().
+ */
+function lms_user_preprocess_menu_local_task(&$variables) {
+  $route_name = Drupal::routeMatch()->getRouteName();
+
+  if ($route_name === 'user.login' || $route_name === 'user.pass') {
+    $variables['link']['#options']['attributes']['class'][] = 'custom-local-task-item';
+  }
+}
+
+/**
+ * Implements hook_menu_local_tasks_alter().
+ */
+function lms_user_menu_local_tasks_alter(&$data, $route_name, RefinableCacheableDependencyInterface &$cacheability) {
+  if ($route_name === 'user.login' && isset($data['tabs'][0])) {
+    unset($data['tabs'][0]['user.register'], $data['tabs'][0]['user.pass']);
+  }
+  elseif ($route_name === 'user.pass' && isset($data['tabs'][0])) {
+    unset($data['tabs'][0]['user.register']);
+  }
+}
+
+/**
+ * Implements hook_entity_update().
+ */
+function lms_user_entity_update(EntityInterface $entity) {
+  if ($entity->getEntityTypeId() === 'user') {
+    // Prevent looping because of password_policy
+    static $is_Submitted;
+    if ($is_Submitted) {
+      return;
+    }
+    $is_Submitted = TRUE;
+
+    $currentUser = Drupal::currentUser();
+    if ((int) $currentUser->id() !== (int) $entity->id()) {
+      // This change is my from someone, ignore email
+      return;
+    }
+
+    // Only trigger when user's using membership
+    $route_name = Drupal::routeMatch()->getRouteName();
+    if ($route_name !== 'lms_user.edit_profile') {
+      return;
+    }
+
+    if ($entity->isActive() && (int) $entity->getLastAccessedTime() !== 0) {
+      $lmsUserMail = Drupal::service('lms_mail.lms_user');
+      $result = $lmsUserMail->sendUserProfileUpdate($entity, $entity->getEmail());
+
+      if (!$result) {
+        Drupal::messenger()->addError(t("Error: Can't send mail member information editing completed"));
+      }
+    }
+  }
+  // Update application number when user course is updated through UI.
+  Drupal::service('lms_user.manager')->updateAppNumber($entity);
+}
+
+/**
+ * Implements hook_user_login().
+ */
+function lms_user_user_login(UserInterface $account) {
+  $user_manager = Drupal::service('lms_user.manager');
+  $current_request = Drupal::service('request_stack')->getCurrentRequest();
+  $route_name = $current_request->attributes->get('_route');
+  $destination =
+    \Drupal::service('request_stack')
+      ->getCurrentRequest()
+      ->query->get('destination') ?? FALSE;
+
+  if ($route_name !== 'user.reset.login' && $route_name !== 'lms_user.register_verify' && $route_name !== 'lms_user.password.onetime') {
+    $class = $current_request->query->get('class');
+    $url_redirect = NULL;
+
+    if ($class) {
+      $course_ids = $current_request->query->get('course_ids');
+
+      if ($course_ids) {
+        $course_ids = explode(',', $course_ids);
+        $result = $user_manager->addCourseToCart($course_ids);
+
+        if ($result) {
+          $url_redirect = $user_manager->setUrlWithLanguage(NULL, Url::fromRoute('commerce_cart.page')->toString());
+        }
+        else {
+          Drupal::messenger()->addError(t('Your chosen courses have already been applied'));
+          $url_redirect = $user_manager->setUrlWithLanguage(NULL, $class);
+        }
+      }
+    }
+    else {
+      if ($account->hasRole('lms_admin') || $account->hasRole('lms_staff') || $account->hasRole('administrator')) {
+        $url_redirect = $user_manager->setUrlWithLanguage(NULL, Url::fromRoute('lms_commerce.admin_page')->toString());
+      }
+      else {
+        $url_redirect = $destination ? $destination : $user_manager->setUrlWithLanguage(NULL, Url::fromRoute('lms_user.dashboard')->toString());
+      }
+    }
+
+    if ($url_redirect) {
+      \Drupal::service('request_stack')
+        ->getCurrentRequest()
+        ->query->set('destination', $url_redirect);
+
+      return;
+    }
+  }
+  elseif ($route_name === 'user.reset.login' || $route_name === 'lms_user.password.onetime') {
+    $url_redirect = $user_manager->setUrlWithLanguage(NULL, Url::fromRoute('lms_user.edit_profile')->toString());
+
+    if ($url_redirect) {
+      \Drupal::service('request_stack')
+        ->getCurrentRequest()
+        ->query->set('destination', $url_redirect);
+
+      return;
+    }
+  }
+}
+
+/**
+ * Implements hook_user_logout().
+ */
+function lms_user_user_logout(AccountInterface $account) {
+  $current_request = Drupal::service('request_stack')->getCurrentRequest();
+  $route_name = $current_request->attributes->get('_route');
+
+  if ($route_name !== 'lms_user.password.login') {
+    $response = new RedirectREsponse(Url::fromRoute('lms_user.logout_page')->toString());
+    $response->send();
+  }
+}
+
+/**
+ * Implements hook_preprocess().
+ */
+function lms_user_preprocess_page_title(&$variables) {
+  $route_match = Drupal::routeMatch();
+  $route_name = $route_match->getRouteName();
+  $node = $route_match->getParameter('node');
+  $bundle = $node ? $node->bundle() : '';
+
+  if ($route_name === 'user.pass') {
+    $variables['title'] = ['#markup' => t('Reset Password')];
+  }
+  elseif ($route_name === 'entity.node.canonical' && $bundle === 'class') {
+    $variables['title'] = ['#markup' => t('Course')];
+  }
+  elseif ($route_name === 'lms_user.class_presurvey') {
+    $variables['title'] = ['#markup' => t('Course')];
+  }
+}
+
+/**
+ * @param $form
+ */
+function lms_user_download_csv_redirect($form, FormStateInterface $form_state) {
+  $values = $form_state->getValues();
+  $title = $values['title'];
+  $type = $values['type'];
+  $status = $values['status'];
+  $langcode = $values['langcode'];
+
+  $response = new RedirectREsponse(
+    Url::fromRoute('lms_user.download_csv', [
+      'title' => $title,
+      'type' => $type,
+      'status' => $status,
+      'langcode' => $langcode,
+    ])->toString()
+  );
+  $response->send();
+}
+
+/**
+ * Implements hook_webform_submission_form_alter().
+ */
+function lms_user_webform_submission_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
+  if (
+    webform_base_form($form['#webform_id'] ?? '') === 'questionnaire_after_attendance' ||
+    webform_base_form($form['#webform_id'] ?? '') === 'pre_questionnaire'
+  ) {
+    $course = Drupal::request()->get('course');
+    $user_class = Drupal::request()->get('user_class');
+
+    if ($course || $user_class) {
+      $form['#validate'][] = 'lms_user_webform_validate';
+      $form['#attached']['library'][] = 'lms_user/lms_user_webform_post_survey';
+    }
+  }
+  elseif ($form_id === 'webform_submission_contact_us_add_form') {
+    $form['#validate'][] = 'lms_user_webform_validate';
+    $form['#attached']['library'][] = 'lms_user/lms_user_webform_post_survey';
+
+    if ($form['progress']['#current_page'] === 'input') {
+      $form['#attached']['drupalSettings']['contact_us_add_form_input'] = TRUE;
+    }
+    else {
+      $form['#attached']['drupalSettings']['contact_us_add_form_input'] = FALSE;
+    }
+  }
+}
+
+function lms_user_webform_validate(&$form, FormStateInterface $form_state) {
+  $values = $form_state->getValues();
+  $email_error_message = NULL;
+  $email_confirm_error_message = NULL;
+  $email_error = FALSE;
+  $email_confirm_error = FALSE;
+
+  if (!empty($values['email']) && !Drupal::service('email.validator')->isValid($values['email'])) {
+    $email_error = TRUE;
+    $message = $email_error_message = t('Please insert an "@" in your email address');
+    $form_state->setErrorByName('email', $message);
+  }
+
+  if (!empty($values['email_confirm']) && !Drupal::service('email.validator')->isValid($values['email_confirm'])) {
+    $email_confirm_error = TRUE;
+    $message = $email_confirm_error_message = t('Please insert an "@" in your email address');
+
+    $form_state->setErrorByName('email_confirm', $message);
+  }
+
+  if (!empty($values['email_confirm']) && !empty($values['email']) && $values['email_confirm'] !== $values['email']) {
+    $email_confirm_error = TRUE;
+    $message = $email_confirm_error_message = t('The email address entered is different from the email address you entered above.');
+
+    $form_state->setErrorByName('email_confirm', $message);
+  }
+
+  if ($form_state->hasAnyErrors()) {
+    $errors = $form_state->getErrors();
+
+    if ($email_error) {
+      $errors['email'] = $email_error_message;
+    }
+
+    if ($email_confirm_error) {
+      $errors['email_confirm'] = $email_confirm_error_message;
+    }
+
+    lms_user_move_errors_to_inline($form, $form_state, $errors);
+
+    if (($form['#webform_id'] ?? '') !== 'contact_us') {
+      $form['#attached']['drupalSettings']['error_message'] = t('Please check that the entered content is correct.');
+    }
+  }
+}
+
+function lms_user_errors_inline(&$form, $form_state, &$trigger = FALSE) {
+  if (!$trigger) {
+    $trigger = &$form;
+  }
+  $trigger['#validate'][] = 'lms_user_errors_inline_validate';
+  $form['#attached']['library'][] = 'lms_user/lms_user_webform_post_survey';
+}
+
+function lms_user_errors_inline_validate(&$form, FormStateInterface $form_state) {
+  if ($form_state->hasAnyErrors()) {
+    lms_user_move_errors_to_inline($form, $form_state);
+  }
+}
+
+function lms_user_move_errors_to_inline(&$form, $form_state, $errors = FALSE) {
+  $errors = $errors ? $errors : $form_state->getErrors();
+  $form['#attached']['drupalSettings']['errors'] = Json::encode($errors);
+}
+
+/**
+ * Implements hook_theme_registry_alter().
+ */
+function lms_user_theme_registry_alter(&$theme_registry) {
+  $module_path = drupal_get_path('module', 'lms_user');
+  $theme_registry['webform_progress_tracker']['path'] = $module_path . '/templates';
+}
+
+/**
+ * Implements hook_language_switch_links_alter().
+ */
+function lms_user_language_switch_links_alter(array &$links, $type, $path) {
+  $langcode = Drupal::languageManager()
+    ->getCurrentLanguage()
+    ->getId();
+  $links[$langcode]['attributes']['class'][] = 'is-active';
+}
+
+/**
+ * Implements hook_entity_insert().
+ */
+function lms_user_entity_insert(EntityInterface $entity) {
+  Drupal::service('lms_user.manager')->updateAppNumber($entity);
+}
+
+/**
+ * Implements hook_entity_delete().
+ */
+function lms_user_entity_delete(EntityInterface $entity) {
+  Drupal::service('lms_user.manager')->updateAppNumber($entity);
+}
+
+/**
+ * Implements hook_entity_presave().
+ */
+function lms_user_entity_presave(EntityInterface $entity) {
+  if ($entity->getEntityTypeId() === 'user_course') {
+    $user_manager = Drupal::service('lms_user.manager');
+    $uid = $entity->get('uid');
+    // Only set uid if it's not set yet
+    if (!$uid || !($uid->getValue()[0] ?? FALSE)) {
+      $entity->set('uid', Drupal::currentUser()->id());
+    }
+
+    // Apply logic of state to status
+    if ($entity->get('state')[0]) {
+      $original = $entity->original;
+      $original_transition_id = $original && $original->get('state')[0] ? $original->get('state')[0]->getValue()['value'] : '';
+      $course = $entity;
+      $transition_id = $entity->get('state')[0]->getValue()['value'];
+      if (in_array($transition_id, ['refunded', 'canceled'], TRUE)) {
+        $course->set('status', 0);
+      }
+      elseif ($transition_id === 'rejected') {
+        $course->set('status', 1);
+      }
+      if ($original_transition_id !== $transition_id) {
+        \Drupal::moduleHandler()->invokeAll('user_course_state_change', [$course, $transition_id]);
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_user_presave().
+ */
+function lms_user_user_presave(EntityInterface $entity) {
+  if (!(($GLOBALS['member_id_force'] ?? FALSE) || $entity->isNew())) {
+    return;
+  }
+
+  // Verify if member id feature applied yet
+  $fields = \Drupal::service('entity_field.manager')->getFieldDefinitions('user', 'user');
+  $field = $fields['field_member_id'] ?? FALSE;
+
+  if (!$field) {
+    return;
+  }
+  $entity->set('field_member_id', _member_id());
+}
+
+/**
+ * Implements hook_user_update().
+ */
+function lms_user_user_update($account) {
+  // Ensure the new updated member id doesn't reach max member_id_index
+  $member_id = $account->get('field_member_id') ?? FALSE;
+  $member_id = $member_id->getValue()[0]['value'] ?? FALSE;
+  if (!$member_id) {
+    return;
+  }
+
+  $config = \Drupal::getContainer()
+    ->get('config.factory')
+    ->getEditable('lms_user.settings');
+
+  // Get next member_id
+  $mock = _member_id(FALSE, FALSE);
+  if ($member_id) {
+    if (!$mock || $mock < $member_id) {
+      $config->set('member_id_index', $member_id);
+      $config->save();
+    }
+  }
+}
+
+/**
+ * Implements hook_user_delete().
+ */
+function lms_user_user_delete($account) {
+  // Should trigger a cron to refresh application_number?
+  $user_manager = Drupal::service('lms_user.manager');
+  $courses = \Drupal::entityTypeManager()
+    ->getStorage('user_course')
+    ->loadByProperties(['uid' => $account->id()]);
+
+  // Loop for all user's courses
+  foreach ($courses as $course) {
+    Drupal::service('lms_user.manager')->updateAppNumber($course);
+  }
+}
+
+/**
+ * Registers a variable to make it available in your twig file.
+ */
+function lms_user_preprocess_block(&$variables) {
+  if (
+    in_array(
+      $variables['plugin_id'],
+      [
+        'views_block:lms_course_list-block_1',
+        'views_block:lms_course_list-block_2',
+        'views_block:lms_course_list-block_3',
+        'views_block:lms_course_list-block_4',
+        'views_block:lms_course_list-block_5',
+      ],
+      TRUE
+    )
+  ) {
+    $block_label = $variables['label']['#markup'];
+    $variables['label'] = ['#markup' => '<span>' . $block_label . '</span>'];
+
+    return $variables;
+  }
+}
+
+/**
+ * Implements hook_entity_bundle_field_info_alter().
+ */
+function lms_user_entity_bundle_field_info_alter(&$fields, EntityTypeInterface $entity_type, $bundle) {
+  if (!empty($fields['field_member_id'])) {
+    $fields['field_member_id']->addConstraint('BuniqueField', []);
+  }
+}
+
+/**
+ * Implements hook_user_course_state_change().
+ */
+function lms_user_user_course_state_change($user_course, $transition_id) {
+  if (in_array($transition_id, ['refunded', 'canceled'], TRUE)) {
+    $user = $user_course->getUser();
+    lms_mail_send_both('transition_changed_canceled', $user, [
+      'user_course' => $user_course,
+    ]);
+  }
+}
+
+function submission_to_order($submission) {
+  $item = $submission->getData();
+  $item = UserCourse::load($item['user_course']);
+  if (!$item) {
+    return FALSE;
+  }
+  $order_id = $item = $item->get('order')[0]->getValue()['target_id'];
+  if (!$item) {
+    return FALSE;
+  }
+  return Order::load($item);
+}
+
+function submission_to_state($submission) {
+  $item = $submission->getData();
+  $user_course = $item['user_course'];
+  $item = Url::fromRoute('entity.user_course.edit_form', ['user_course' => $user_course], ['query' => \Drupal::service('redirect.destination')->getAsArray()]);
+  return $item;
+}
+
+function _cancel_request_fixes(&$form, $form_state) {
+  $route_name = Drupal::routeMatch()->getRouteName();
+  if ($route_name !== 'entity.webform.canonical') {
+    return;
+  }
+  if (($form['#webform_id'] ?? '') !== 'cancel_course') {
+    return;
+  }
+
+  // Permission denied
+  $product_id = \Drupal::request()->query->get('select_a_course');
+  $courseManager = Drupal::service('lms_commerce.course_manager');
+  $course = FALSE;
+  if ($product_id) {
+    $course = Product::load($product_id);
+  }
+
+  $courseStatus = '';
+  $anonymousCourseStatus = '';
+  if ($course) {
+    $courseStatus = $courseManager->getCourseStatus($course);
+    $anonymousCourseStatus = $courseManager->getCourseStatus($course, User::load(0));
+  }
+
+  // Do not handle if the form is under submitting
+  $inputs = $form_state->getUserInput();
+  if (!$inputs) {
+    if ($courseStatus !== 'applied' || $anonymousCourseStatus === 'closed') {
+      hide($form);
+      \Drupal::messenger()->addError(t('Access denied'));
+      return $form;
+    }
+  }
+
+  // Prefill user_course
+  $user_id = \Drupal::currentUser()->id();
+  $user = User::load($user_id);
+  $user_manager = \Drupal::service('lms_user.manager');
+  $user_course = $user_manager->getUserCourse($course, $user);
+  if ($user_course) {
+    $form['elements']['user_course']['#default_value'] = $user_course->id();
+  }
+  hide($form['elements']['user_course']);
+
+  // Move markup_1 up
+  if ($form['elements']['markup_01'] ?? FALSE) {
+    $form['markup_01'] = ['#weight' => -99] + $form['elements']['markup_01'];
+    hide($form['elements']['markup_01']);
+  }
+
+  $form['actions']['wizard_next']['#attributes'] = [
+    'class' => ['btn-next'],
+    'data-twig-suggestion' => 'contact_us_next_submit',
+  ];
+
+  if ($form_state->get('current_page') === 'enter_items') {
+    $form['actions']['wizard_next']['#suffix'] = new FormattableMarkup(
+      '<a href="javascript:history.back()" class="mod-button is-circle is-size-middle is-pc-left is-arrow-left"><span class="mod-button_inner">@back</span></a>',
+      ['@back' => t('Back')]
+    );
+  }
+  else {
+    if ($form['markup_01'] ?? FALSE) {
+      hide($form['markup_01']);
+    }
+  }
+
+  $contactus_progress = [t('Input <br class="sp-only">screen'), t('Confirmation <br class="sp-only">screen'), t('Completed <br class="sp-only">')];
+  $form['#attached']['drupalSettings']['form_progress'] = $contactus_progress;
+  $form['#attached']['library'][] = 'lms_user/lms_user_override_webform_progress';
+  lms_user_errors_inline($form, $form_state);
+
+  // Add term_link
+  // = '<a href="http://google.com">terms and conditions</a>';
+  _add_token($form['elements']['enter_items']['i_agree_to_the_handling_of_personal_information']['#title']);
+
+  // Convert readonly to markup
+  _convert_readonly($form['elements']);
+}
+
+function _add_token(&$title) {
+  // Add term link token
+  $langcode = \Drupal::languageManager()
+    ->getCurrentLanguage()
+    ->getId();
+  $node = Node::load(48);
+  $node = $node->hasTranslation($langcode) ? $node->getTranslation($langcode) : $node;
+  $link = new FormattableMarkup('<a href="@href" target="_blank" className="mod-link-text is-blank" rel="noopener noreferrer">@text</a>', [
+    '@href' => $node->toUrl()->toString(),
+    '@text' => t('terms and conditions'),
+  ]);
+  $title = str_replace('_TERMLINK_', $link, $title);
+}
+
+function _contact_us_fixes(&$form, $form_state) {
+  if (($form['#webform_id'] ?? '') !== 'contact_us') {
+    return;
+  }
+  $form['actions']['wizard_next']['#attributes'] = [
+    'class' => ['btn-next'],
+    'data-twig-suggestion' => 'contact_us_next_submit',
+  ];
+  $contactus_progress = [t('Input <br class="sp-only">screen'), t('Confirmation <br class="sp-only">screen'), t('Completed <br class="sp-only">')];
+  $form['#attached']['drupalSettings']['form_progress'] = $contactus_progress;
+  $form['#attached']['library'][] = 'lms_user/lms_user_override_webform_progress';
+}
+
+function _member_id($user = FALSE, $save = TRUE) {
+  $config = \Drupal::getContainer()
+    ->get('config.factory')
+    ->getEditable('lms_user.settings');
+  $mock = $config->get('member_id_index');
+
+  // If the mock is blank, let's use alternate SQL counting
+  if (!$mock) {
+    $config->set('member_id_index', _member_id_sql());
+    if ($save) {
+      $config->save();
+    }
+    $mock = $config->get('member_id_index');
+  }
+  else {
+    // Just increase 1 the existed mock, if it matchs the current year
+    $year = substr($mock, 0, 2);
+
+    // Verify if this year is good
+    $shortyear = date('y', time());
+    if ($year === $shortyear) {
+      $id = substr($mock, 2);
+    }
+    else {
+      $id = 0;
+    }
+    $id++;
+    $fulloffset = str_pad($id, 5, '0', \STR_PAD_LEFT);
+    $newmock = "{$shortyear}{$fulloffset}";
+
+    // Store
+    $config->set('member_id_index', $newmock);
+    if ($save) {
+      $config->save();
+    }
+    $mock = $config->get('member_id_index');
+
+    // Add a small step to ensure assigned number is unique
+    if ($mock < _member_id_sql()) {
+      \Drupal::logger('lms_user')->notice('Updated member_id_index to proper value');
+      $config->set('member_id_index', _member_id_sql());
+      if ($save) {
+        $config->save();
+      }
+      $mock = $config->get('member_id_index');
+    }
+  }
+
+  return $mock;
+}
+
+function _member_id_sql($user = FALSE) {
+  $created = $user ? $user->get('created')->getValue()[0]['value'] ?? jp_time() + 100000 : jp_time() + 100000;
+  $year = date('Y', $created);
+  $shortyear = date('y', $created);
+
+  // Now count total number to this user
+  $start = strtotime("{$year}-01-01 00:00:00");
+  $sql = "SELECT MAX(d.field_member_id_value) FROM user__field_member_id d JOIN users_field_data u ON d.entity_id=u.uid WHERE u.created>=$start AND u.created<=$created";
+  $result = \Drupal::database()
+    ->query($sql)
+    ->fetchField();
+  $result = substr($result, 2);
+  $offset = $result + 1;
+  $fulloffset = str_pad($offset, 5, '0', \STR_PAD_LEFT);
+
+  return "{$shortyear}{$fulloffset}";
+}
+
+function _convert_readonly(&$elements) {
+  if (!is_array($elements)) {
+    return;
+  }
+  foreach ($elements as $groups => &$group) {
+    if (is_array($group) && (($group['#readonly'] ?? FALSE) || ($group['#disabled'] ?? FALSE))) {
+      $group['#prefix'] = _default_value_readonly($group);
+      // hide($group);
+      $group['#attributes']['style'] = 'display: none';
+
+      continue;
+    }
+    _convert_readonly($group);
+  }
+}
+
+function _default_value_readonly($element) {
+  $default = $element['#default_value'] ?? '';
+  if ($element['#type'] === 'webform_entity_select') {
+    $default = $element['#options'][$default] ?? '';
+    return $default;
+  }
+  return $default;
+}
+
+function jp_time2($value) {
+  $user_manager = \Drupal::service('lms_user.manager');
+  // Convert to JP
+  return $user_manager->getTimeStampWithTimezone($value);
+}
+
+function jp_time() {
+  $current_time = new \DateTime('now', new \DateTimeZone(date_default_timezone_get()));
+  return $current_time->getTimestamp();
+}
+
+function jp_days($timestamp) {
+  $dt = new \DateTime();
+  $dt->setTimestamp($timestamp);
+  $strip = $dt->format('Y-m-d');
+  return strtotime($strip);
+}
+
+function jp_to_utc_time($timestamp) {
+  return $timestamp - 32400;
+}
+
+/**
+ * Calculates sort values as https://app.clickup.com/t/1z5b36k.
+ */
+function computed_field_field_sort_value_compute($entity_type_manager, $entity, $fields, $delta) {
+  $app_start_date = $entity->field_start_date_time->value;
+  if (!$app_start_date) {
+    $app_start_date = $entity->field_application_acceptance_per->value;
+  }
+  $dateratio = 1 / jp_days(strtotime('2100-12-12'));
+  $isavailable = jp_days(jp_time2($entity->field_application_acceptance_per->value)) - jp_days(jp_time()) >= 0 ? 1 : -1;
+  $sortvalue =
+    -$isavailable * 100000000 +
+    intval(jp_days(jp_time2($app_start_date)) * $dateratio * max($isavailable, 0) * 100000000) +
+    intval(jp_days(jp_time2($entity->field_period->value)) * $dateratio * $isavailable * 1000000);
+  return $sortvalue;
+}
+
+function _admin_restriction(&$form, $form_state, $form_id) {
+  if (\Drupal::currentUser()->hasPermission('administer users')) {
+    return;
+  }
+
+  if ($form_id === 'user_form') {
+    // Member ID restriction
+    if ($form['field_member_id'] ?? FALSE) {
+      $form['field_member_id']['#access'] = FALSE;
+    }
+  }
+}
+
+/**
+ * Implements hook_query_TAG_alter().
+ */
+function lms_user_query_postsurvey_alter(&$query) {
+  return lms_user_query_survey_alter($query);
+}
+
+/**
+ * Implements hook_query_TAG_alter().
+ */
+function lms_user_query_presurvey_alter(&$query) {
+  return lms_user_query_survey_alter($query);
+}
+
+/**
+ * Help of query alter.
+ */
+function lms_user_query_survey_alter(&$query) {
+  $orders = &$query->getOrderBy();
+
+  // With count, orders is empty
+  if (!$orders) {
+    return;
+  }
+
+  $k1 = 'webform_submission_2.webform_id';
+  // Also check if this is converted to expression
+  $expressions = $query->getExpressions();
+  $isExpression = FALSE;
+  foreach ($expressions as $k => $v) {
+    if (isset($expressions[$k]['expression']) && $expressions[$k]['expression'] === "min($k1)") {
+      $isExpression = TRUE;
+      $k1 = $k;
+      break;
+    }
+  }
+  $isNormal = $orders[$k1] ?? FALSE;
+
+  // Escape since count query doesn't have order
+  if (!($isNormal || $isExpression)) {
+    return;
+  }
+
+  // Allow tags to alter
+  foreach (lms_get_tags($query) as $pos => $tag) {
+    lms_alter_tag($query, $expressions, $pos, $tag);
+  }
+  // dd($query . '');
+}
+
+function lms_get_tags($query) {
+  $tags = [];
+  foreach ($query->alterTags as $k => $v) {
+    if (strpos($k, '|') !== FALSE) {
+      [$k1, $v1] = explode('|', $k, 2);
+      $tags[$k1] = $v1;
+    }
+  }
+  return $tags;
+}
+
+function lms_alter_tag(&$query, $expressions, $pos, $tag) {
+  [$ctag, $tm_pos, $tag_more] = explode('|', $tag, 3);
+  // Proceed sub tag
+  $new_key = '';
+  if ($tag_more) {
+    $new_key = lms_alter_single_tag($query, $expressions, $tm_pos, $tag_more, TRUE);
+    $new_key = $query->getExpressions()[$new_key]['expression'];
+  }
+
+  lms_alter_single_tag($query, $expressions, $pos, $ctag, FALSE, $new_key);
+}
+
+function lms_alter_single_tag(&$query, $expressions, $pos, $tag_more, $sub = FALSE, $override_key = '') {
+  [$tag, $more_pos, $more, $remove_pos] = explode('~', $tag_more . '~~~~', 4);
+  $cb = 'lms_alter_tag_' . $tag;
+  $keys = array_keys($expressions);
+
+  // From the position, find the SQL key to do our alteration
+  $replace = $keys[$pos];
+  $more_replace = !is_null($more_pos) && isset($keys[$more_pos]) ? $keys[$more_pos] : '';
+  $remove_pos = !is_null($remove_pos) && isset($keys[$remove_pos]) ? $keys[$remove_pos] : '';
+  $key = $expressions[$replace]['expression'];
+  $key = preg_replace('/[^\(]*\(/', '', $key);
+  $key = preg_replace('/\)[^\)]*?/', '', $key);
+  if ($override_key) {
+    $key = $override_key;
+  }
+
+  global $debug;
+  // if ($debug) {
+  // dd([$remove_pos, $more_replace]);
+  // }
+  // Check if there is define alteration for the tag then use that
+  if (function_exists($cb)) {
+    $newkey = 'custom_' . $pos;
+    if ($sub) {
+      $newkey = 'custom_sub_' . $pos;
+    }
+
+    if ($more_replace) {
+      $more_replace = $query->getExpressions()[$more_replace]['expression'];
+    }
+    $cb($query, $newkey, $key, $more, $replace, $more_replace, $expressions);
+
+    $toreplace = [];
+
+    // Remove the query if there is pos in a more call
+    if ($remove_pos) {
+      $toreplace = [
+        $remove_pos => [FALSE],
+      ];
+    }
+
+    if (!$sub) {
+      $toreplace += [
+        $replace => [$newkey],
+      ];
+    }
+
+    // Replace the order
+    $orders = &$query->getOrderBy();
+    $neworders = [];
+    foreach ($orders as $k => $v) {
+      if (in_array($k, array_keys($toreplace), TRUE)) {
+        [$okey] = $toreplace[$k];
+        if ($okey) {
+          $neworders[$okey] = $v;
+        }
+        else {
+          // Notice that the order of field is removed after this action => NO, this is not right, expressions is still kept!
+          unset($neworders[$okey]);
+        }
+      }
+      else {
+        $neworders[$k] = $v;
+      }
+    }
+    $orders = $neworders;
+  }
+  if ($sub) {
+    return $newkey;
+  }
+  return FALSE;
+}
+
+function lms_alter_tag_COALESCE(&$query, $key, $source, $more, $replace, $more_replace) {
+  $query->addExpression('COALESCE(' . $more_replace . ', ' . $source . ')', $key);
+}
+
+function lms_alter_tag_ISNULL(&$query, $key, $source) {
+  $query->addExpression('ISNULL(' . $source . ')', $key);
+}
+
+function lms_alter_tag_ISNULLORDEL(&$query, $key, $source) {
+  $query->addExpression('ISNULL(' . $source . ') OR (' . $source . ' NOT IN (' . lms_dt_webforms_list() . '))', $key);
+}
+
+function lms_webforms_all($list) {
+  // Do our real sort based on survey name
+  $langcode = \Drupal::languageManager()
+    ->getCurrentLanguage()
+    ->getId();
+
+  $webform_ids = \Drupal::entityQuery('webform')
+    ->sort('title', 'ASC', $langcode)
+    ->execute();
+  $webforms = Webform::loadMultiple($webform_ids);
+  $webforms_list = join(
+    ', ',
+    array_map(function ($i) {
+      return "'" . $i->id() . "'";
+    }, $webforms)
+  );
+  $webforms = count($webforms) ? ', ' . $webforms_list : '';
+  return $list ? $webforms_list : $webforms;
+}
+
+function lms_dt_webforms_list() {
+  return lms_webforms_all(TRUE);
+}
+
+function lms_dt_webforms() {
+  return lms_webforms_all(FALSE);
+}
+
+function lms_alter_tag_WEBFORM(&$query, $key, $source) {
+  $query->addExpression('FIELD(' . $source . lms_dt_webforms() . ')', $key);
+}

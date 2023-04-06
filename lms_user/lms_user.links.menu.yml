@@ -1,0 +1,42 @@
+lms_user.user_course:
+  title: User Course
+  description: 'Manage all the courses that user applied'
+  route_name: entity.user_course.collection
+  parent: lms_commerce.admin_page
+
+lms_user.user_class:
+  title: User Class
+  description: 'Manage all classes that user applied'
+  route_name: entity.user_class.collection
+  parent: lms_commerce.admin_page
+
+lms_user.class_list:
+  title: Class List
+  description: 'Manage all class'
+  route_name: view.content_class_list.page_1
+  parent: lms_commerce.admin_page
+
+entity.user_class.add_form:
+  title: 'Add Class'
+  route_name: entity.user_class.add_form
+  description: 'Add Class'
+  parent: lms_user.user_class
+
+entity.user_course.add_form:
+  title: 'Add Course'
+  route_name: entity.user_course.add_form
+  description: 'Add Course'
+  parent: lms_user.user_course
+
+lms_user.settings:
+  title: 'LMS User Config'
+  route_name: lms_user.settings
+  description: 'A description for the menu entry'
+  parent: system.admin_config_system
+  weight: 99
+
+lms_user.bulk_regist.import:
+  title: 'Bulk Member registration'
+  route_name: lms_user.bulk_registration
+  parent: lms_commerce.admin_page
+  weight: 120

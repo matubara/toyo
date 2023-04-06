@@ -1,0 +1,237 @@
+<form{{ attributes }}> {{ form.form_build_id }} {{ form.form_token }} {{ form.form_id }}
+    {{ form['register_step'] }}
+    {% if form['#steps'] == "information" %}
+        <div class="form_table">
+            <div class="register_infor_header">
+                <p>{{ 'Enter the required information and proceed to the confirmation screen.' |t }} </p>
+                <p>{{ 'All are required items.'|t }}</p>
+            </div>
+            <table class="mod-table-basic is-form">
+                <tbody>
+                <tr>
+                    <th>{{ 'Full name'|t }}</th>
+                    <td>
+                        {{ form['full_name'] }}
+                        <p class="txt-anno">{{ 'For documents with your name to be issued, this input will be printed. If the number of characters is large, the characters will be reduced and displayed (recommended: up to 30 characters).'|t }}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Name (Hiragana)'|t }}</th>
+                    <td>
+                        {{ form['pronounce_name'] }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Mail address'|t }}</th>
+                    <td>
+                        {{ form['mail'] }}
+                        <p class="txt-info">{{ 'Please enter again to confirm.'|t }}</p>
+                        {{ form['confirm_mail'] }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Password' |t }}</th>
+                    <td>
+                        {{ form['password'] }}                        
+                        {{ drupal_config('lms_user.settings', 'password_tutorial').value | raw }}
+                        <p class="txt-info">{{ 'Please enter again to confirm.'|t }}</p>
+                        {{ form['confirm_password'] }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Birthday' |t }}</th>
+                    <td>
+                        {{ form['field_birthday'] }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Gender'|t }}</th>
+                    <td>
+                        {{ form['field_gender'] }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Country/region of origin'|t }}</th>
+                    <td>
+                        {{ form['nation'] }}
+                        <p class="txt-info">{{ 'In the case of "Other", please fill in the specifics.'|t }}</p>
+                        {{ form['other_nation'] }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'First language'|t }}</th>
+                    <td>
+                        {{ form['field_first_language'] }}
+                        <p class="txt-info">{{ 'In the case of "Other", please fill in the specifics.'|t }}</p>
+                        {{ form['field_other_first_language'] }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Language selection'|t }}</th>
+                    <td>
+                        <p class="txt-info">{{ 'Please select the display language of this site.'|t }}</p>
+                        {{ form['field_language_website'] }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Are you an Toyo University student?'|t }}</th>
+                    <td>
+                        {{ form['field_is_student'] }}
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="form_privacy">
+                <div class="form_privacy_inner">
+                    <div class="heading-level5">{{ 'Handling of Personal Information'|t }}</div>
+                    <p>{{ 'Toyo University Global Service Corporation  (hereinafter referred to as "we") recognizes the importance of the personal information (information that can identify an individual) provided by you and believes that it is our social responsibility to handle personal information properly, complies with the laws and regulations regarding personal information and internal rules, and properly obtains, uses, and manages the personal information handled by us. We may send emails to members regarding course announcements and attendance to the email address you have registered.'|t }}</p>
+                    <p>{{ 'Please see the following link for more details.'|t }}</p>
+                    <ul class="mod-list-square">
+                        <li>
+                            <b>{{ 'Toyo University'|t }}</b><br>
+                            <a href="https://www.toyo.ac.jp/about/effort-activity/privacy/" target="_blank"
+                               class="mod-link-text is-blank"
+                               rel="noopener noreferrer">https://www.toyo.ac.jp/about/effort-activity/privacy/</a>
+                        </li>
+                        <li>
+                            <b>{{ 'Toyo University Global Service Co., Ltd.'|t }}</b><br>
+                            <a href="https://www.tugs.co.jp/privacypolicy/" target="_blank"
+                               class="mod-link-text is-blank"
+                               rel="noopener noreferrer">https://www.tugs.co.jp/privacypolicy/</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="form_agree">
+                {{ form['agree'] }}
+            </div>
+
+            <div class="mod-button_box has-one-button">
+                {{ form['submit'] }}
+            </div>
+
+        </div>
+    {% endif %}
+    {% if form['#steps'] == "review" %}
+        <div class="form_table">
+            <div class="review_header">
+                <p>{{ 'Please confirm the entered information.'|t }}</p>
+                <p>{{ 'If something needs to be corrected, click the "Back" button to return to the previous screen and correct it.'|t }}</p>
+                <p>{{ 'When finished, click the "Submit" button to complete submission.'|t }}</p>
+            </div>
+            <table class="mod-table-basic is-form">
+                <tbody>
+                <tr>
+                    <th>{{ 'Full name' |t }}</th>
+                    <td>
+                        {{ form['#review'].full_name }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Name (Hiragana)'|t }}</th>
+                    <td>
+                        {{ form['#review'].pronounce_name }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Mail address'|t }}</th>
+                    <td>
+                        {{ form['#review'].mail }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Password' |t }}</th>
+                    <td>
+                        ***********
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Birthday'|t }}</th>
+                    <td>
+                        {{ form['#review'].field_birthday }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Gender'|t }}</th>
+                    <td>
+                        {{ form['#review'].field_gender }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Country/region of origin'|t }}</th>
+                    <td>
+                        {% if review.nation != "other" %}
+                            {{ form['#review'].nation_name }}
+                        {% endif %}
+                        {% if review.nation == "other" %}
+                            {{ form['#review'].other_nation }}
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'First language'|t }}</th>
+                    <td>
+                        {% if review.field_first_language != "other" %}
+                            {{ form['#review'].field_first_language_name }}
+                        {% endif %}
+                        {% if review.field_first_language == "other" %}
+                            {{ form['#review'].field_other_first_language }}
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Language selection'|t }}</th>
+                    <td>
+                        {{ form['#review'].field_language_website }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Are you an Toyo University student?'|t }}</th>
+                    <td>
+                        {{ form['#review'].field_is_student }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>{{ 'Handling of personal information terms of use' |t }}</th>
+                    <td>
+                        {{ 'I agree'|t }}
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="custom-group-button-register has-two-button">
+                <div class="mod-button_box_return">
+                    {{ form['return'] }}
+                </div>
+                <div class="mod-button_box">
+                    {{ form['submit'] }}
+                </div>
+            </div>
+
+        </div>
+    {% endif %}
+
+    {% if form['#steps'] == "send-verification-email" %}
+        <div class="lms-user-register-send-verification-email">
+            <p>{{ 'Registration is not complete yet.'|t }}</p>
+            <p>{{ 'We have sent a verification email to the email address you entered.'|t }}</p>
+            <p>{{ 'Click the verification URL in the received email to complete the registration.'|t }}</p>
+        </div>
+    {% endif %}
+
+    {% if form['#steps'] == "completed" %}
+        <div class="lms-user-register-completed">
+            <p class="register-complete-message">{{ 'Membership registration is complete.'|t }}</p>
+            <p>{{ 'Thank you for registering.'|t }}</p>
+            <p>{{ 'You can apply for any course.'|t }}</p>
+            <div class="group-link-to-course-page">
+                <a href="{{ url('lms_user.dashboard') }}" class="button_to_member_page">{{ 'To member page' | t }}</a>
+                <a href="{{ url('view.lms_class.page_1') }}" class="button_find_a_course">{{ 'Find a course' | t }}</a>
+            </div>
+            <div class="link-to-top-page">
+                <a href="{{ url('<front>') }}" class="button_top_page">{{ 'Top page' | t }}</a>
+            </div>
+        </div>
+    {% endif %}
+
+</form>

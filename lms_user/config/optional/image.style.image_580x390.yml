@@ -1,0 +1,15 @@
+uuid: 30748a34-6d68-4317-8fab-a486c3ec6ff4
+langcode: en
+status: true
+dependencies: {  }
+name: image_580x390
+label: Image(580x390)
+effects:
+  0a84b91b-5b28-486d-b98e-0f9231d3b786:
+    uuid: 0a84b91b-5b28-486d-b98e-0f9231d3b786
+    id: image_scale_and_crop
+    weight: 1
+    data:
+      width: 580
+      height: 390
+      anchor: center-center

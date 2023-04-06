@@ -1,0 +1,100 @@
+{% set user=form.user['#value'] %}
+<form{{ attributes }}> {{ form.form_build_id }} {{ form.form_token }} {{ form.form_id }}
+    <div class="lms-user-edit-profile">
+        <span class="form_title">{{ 'Member information' |t }}</span>
+    </div>
+    {% if form['#message_submit_complete']['#value'] %}
+      <div class="edit-profile-submit-completed-message">
+        <span>{{ form['#message_submit_complete']['#value'] }}</span>
+      </div>
+    {% endif %}
+    <div class="form_table">
+        <table class="mod-table-basic is-form">
+            <tbody>
+            <tr>
+                <th>{{ 'Member ID'|t }}</th>
+                <td>
+                    {{ user.field_member_id.value }}
+                </td>
+            </tr>
+            <tr>
+                <th>{{ 'Full name'|t }}</th>
+                <td>
+                    {{ form['full_name'] }}
+                    <p class="txt-anno">{{ 'For documents with your name to be issued, this input will be printed. If the number of characters is large, the characters will be reduced and displayed (recommended: up to 30 characters).'|t }}</p>
+                </td>
+            </tr>
+            <tr>
+                <th>{{ 'Name (Hiragana)'|t }}</th>
+                <td>
+                    {{ form['pronounce_name'] }}
+                </td>
+            </tr>
+            <tr>
+                <th>{{ 'Mail address'|t }}</th>
+                <td>
+                    {{ form['mail'] }}
+                    <p class="txt-info">{{ 'Please enter again to confirm.'|t }}</p>
+                    {{ form['confirm_mail'] }}
+                </td>
+            </tr>
+            <tr>
+                <th>{{ 'Password' |t}}</th>
+                <td>
+                    {{ form['password'] }}
+                    {{ form['password_confirm'] }}
+                </td>
+            </tr>
+            <tr>
+                <th>{{ 'Birthday' |t }}</th>
+                <td>
+                    {{ form['field_birthday'] }}
+                </td>
+            </tr>
+            <tr>
+                <th>{{ 'Gender'|t }}</th>
+                <td>
+                    {{ form['field_gender'] }}
+                </td>
+            </tr>
+            <tr>
+                <th>{{ 'Country/region of origin'|t }}</th>
+                <td>
+                    {{ form['nation'] }}
+                    <p class="txt-info">{{ 'In the case of "Other", please specify.'|t }}</p>
+                    {{ form['other_nation'] }}
+                </td>
+            </tr>
+            <tr>
+                <th>{{ 'First language'|t }}</th>
+                <td>
+                    {{ form['field_first_language'] }}
+                    <p class="txt-info">{{ 'In the case of "Other", please specify.'|t }}</p>
+                    {{ form['field_other_first_language'] }}
+                </td>
+            </tr>
+            <tr>
+                <th>{{ 'Language use at website'|t }}</th>
+                <td>
+                    <p class="txt-info">{{ 'Please select the display language of this site.'|t }}</p>
+                    {{ form['field_language_website'] }}
+                </td>
+            </tr>
+            <tr>
+                <th>{{ 'Are you an Toyo University student?'|t }}</th>
+                <td>
+                    {{ form['field_is_student'] }}
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <div class="bottom-form-edit-profile">
+            <div class="mod-button-return">
+                <a href="{{ form['#return'] }}" class="button-return-edit-profile"><i class="prev-step-icon"></i><span class="return-edit-profile-text">{{ 'Return'|t }}</span></a>
+            </div>
+            <div class="mod-button_box">
+                {{ form['submit'] }}
+            </div>
+        </div>
+    </div>
+</form>

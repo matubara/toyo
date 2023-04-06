@@ -1,0 +1,10 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - lms_user
+id: lms_user_cancel_course_action
+label: 'Cancel Course'
+type: user_course
+plugin: lms_user_cancel_course_action
+configuration: {  }

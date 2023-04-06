@@ -1,0 +1,62 @@
+<div class="user-page user-courses">
+    <div class="user-page-header">
+        {% set class = user_class.class.entity %}
+        {% set user = user_class.uid.entity %}
+        <div class="title">
+            <div class="title-class">{{ title_class }}</div>
+            <div class="title-other">
+{{user.field_member_id.0.value}}
+{{ 'Attendance status <span>@full_name</span>'|t({'@full_name':user.field_full_name.value}) }}</div>
+        </div>
+        <div class="action"><a
+                    href="{{ url('entity.node.canonical', {'node': class.id()}) }}">{{ 'See course details'|t }}</a>
+        </div>
+    </div>
+    {{ drupal_config('lms_user.settings', 'usercourses_tutorial').value | raw }}
+    <div class="user-page-wrapper">
+        <div class="info">
+            <span>{{ 'All @number_of_course courses'|t({'@number_of_course': user_courses|length}) }}</span></div>
+        <div class="course-items">
+            {% for key, user_course in user_courses %}
+                {% set course = user_course.course.entity %}
+                <a href="{{ url('entity.commerce_product.canonical', { 'commerce_product': course.id()}) }}">
+                    <div class="item">
+                        <div class="course-item-image">
+                            <div class="course-status">
+                              <span class="course-status__{{ course_status(course, 'plain') }}">
+                                {{ course_status(course) }}
+                              </span>
+                            </div>
+                            <div class="course-date-time">
+                                <div class="course-date-time-format"><span>{{ course_time['day_' ~ key]['#value'] }}</span></div>
+                                <div class="course-time-format"><span>{{ course_time['time_' ~ key]['#value'] }}</span></div>
+                            </div>
+                        </div>
+
+                        <div class="course-tags">
+                            {% set course_theme = translate_entity(course.field_course_theme.entity) %}
+                            {% set course_type = translate_entity(course.field_course_type.entity) %}
+
+                            <span class="mod-icon mod-icon-course">{{ course_theme.label() }}</span>
+                            <span class="mod-icon mod-icon-course">{{ course_type.label() }}</span>
+                        </div>
+                        <div class="course-professor">
+                            {% set professor = translate_entity(course.field_professor.entity) %}
+                            <div class="course-professor-name">{{ professor.label() }}</div>
+                            <div class="course-professor-department">{{ professor.field_professor_department_name.value }}</div>
+
+                        </div>
+                        <div class="course-info">
+                            <div class="course-name">{{ title_course['title_' ~ key] }}</div>
+                            <div class="see-course-detail">
+                                <span>
+                                    {{ 'See details'|t }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>

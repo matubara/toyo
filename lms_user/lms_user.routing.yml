@@ -1,0 +1,212 @@
+entity.user_course.cancel_form:
+  path: '/admin/commerce/lms/user-course/{user_course}/cancel'
+  defaults:
+    _entity_form: 'user_course.cancel'
+    _title: 'Cancel course'
+  options:
+    _admin_route: 'TRUE'
+  requirements:
+    _permission: 'administer site configuration'
+
+user_course.multiple_cancel_confirm:
+  path: '/admin/commerce/lms/user-course/cancel-multiple'
+  defaults:
+    _form: '\Drupal\lms_user\Form\CourseCancelMultipleForm'
+    _title: 'Cancel course'
+  requirements:
+    _permission: 'administer site configuration'
+
+lms_user.class_presurvey:
+  path: '/user/class/{user_class}/pre-survey'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\SurveySubmissionController:preSurvey'
+    _title: 'Survey'
+  requirements:
+    _custom_access: '\Drupal\lms_user\Controller\SurveySubmissionController::checkPreSurveyAccess'
+  options:
+    parameters:
+      user_class:
+        type: entity:user_class
+
+lms_user.course_postsurvey:
+  path: '/user/course/{course}/post-survey'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\SurveySubmissionController:postSurvey'
+    _title: 'Post survey'
+  requirements:
+    _permission: 'access content'
+  options:
+    parameters:
+      course:
+        type: entity:commerce_product
+    no_cache: TRUE
+
+lms_user.dashboard:
+  path: '/user/dashboard'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\UserController:dashboard'
+    _title: 'Dashboard'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+
+lms_user.courses:
+  path: '/user/class/{user_class}/courses'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\UserController:courseList'
+    _title: 'Dashboard'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    parameters:
+      user_class:
+        type: entity:user_class
+
+lms_user.register:
+  path: 'user/register/{step}'
+  defaults:
+    _form: '\Drupal\lms_user\Form\UserRegisterForm'
+    _title: 'Register'
+  requirements:
+    _access: 'TRUE'
+  options:
+    parameters:
+      step:
+        type: string
+
+lms_user.register_verify:
+  path: '/user/register/{user}/{timestamp}/{hash}/verify'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\UserController::registerVerify'
+    _title: 'Register'
+  requirements:
+    _access: 'TRUE'
+  options:
+    parameters:
+      user:
+        type: entity:user
+      timestamp:
+        type: int
+      hash:
+        type: string
+
+lms_user.edit_profile:
+  path: '/user/profile/edit'
+  defaults:
+    _form: '\Drupal\lms_user\Form\UserEditProfileForm'
+    _title: 'Edit Profile'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+    _access: 'TRUE'
+
+lms_user.student_detail:
+  path: '/student/{user}'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\UserController::studentDetail'
+    _title: 'Student Detail'
+  requirements:
+    _permission: 'administer site configuration'
+  options:
+    parameters:
+      user:
+        type: entity:user
+
+lms_user.logout_page:
+  path: '/user-logout'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\UserController::logoutPage'
+    _title: 'Log out'
+  requirements:
+    _permission: 'access content'
+
+lms_user.download_csv:
+  path: '/admin/content/class-list/download-csv'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\UserClassController:downloadCSV'
+    _title: 'Download CSV'
+  requirements:
+    _permission: 'access content'
+lms_user.download_csv_user_course:
+  path: '/admin/commerce/lms/user-course/download-csv'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\UserClassController:downloadCSVUserCourse'
+    _title: 'Download CSV'
+  requirements:
+    _permission: 'administer site configuration'
+
+lms_user.download_csv_user_class:
+  path: '/admin/commerce/lms/user-class/download-csv'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\UserClassController:downloadCSVUserClass'
+    _title: 'Download CSV'
+  requirements:
+    _permission: 'administer site configuration'
+
+lms_user.send_news:
+  path: '/admin/commerce/lms/send-news'
+  defaults:
+    _form: '\Drupal\lms_user\Form\SendNewsForm'
+    _title: 'Send News'
+  requirements:
+    _permission: 'administer site configuration'
+
+lms_user.password.completed:
+  path: '/user/password/completed'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\UserController::resetPasswordCompleted'
+    _title: 'Reset Password'
+  requirements:
+    _permission: 'access content'
+
+lms_user.update_application_number:
+  path: '/admin/commerce/update-application-number'
+  defaults:
+    _title_callback: '\Drupal\lms_user\Form\UpdateApplicationNumberCoursesForm::getTitle'
+    _form: '\Drupal\lms_user\Form\UpdateApplicationNumberCoursesForm'
+  requirements:
+    _custom_access: '\Drupal\lms_user\Controller\UserController::checkAccessUpdateApplicationNumber'
+
+lms_user.settings:
+  path: '/admin/config/lms_user/config'
+  defaults:
+    _form: '\Drupal\lms_user\Form\LmsUserConfigForm'
+    _title: 'Lms Strings'
+  requirements:
+    _permission: 'administer site configuration'
+  options:
+    _admin_route: TRUE
+
+lms_user.bulk_registration:
+  path: '/admin/commerce/bulk-regist/import'
+  defaults:
+    _form: '\Drupal\lms_user\Form\BulkMemberRegistForm'
+    _title: 'Member registration import'
+  requirements:
+    _permission: 'administer site configuration'
+  options:
+    _admin_route: TRUE
+lms_user.bulk_registration_export:
+  path: '/admin/commerce/bulk-regist/export'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\BulkRegistrationController::listExportCSV'
+    _title: 'Member registration export'
+  requirements:
+    _permission: 'administer site configuration'
+  options:
+    _admin_route: TRUE
+    parameters:
+      node:
+        type: entity:node
+lms_user.export_student_list:
+  path: '/admin/people/student-list/export'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\UserController:exportStudentList'
+    _title: 'Export student list'
+  requirements:
+    _permission: 'administer site configuration'
+lms_user.export_student_list2:
+  path: '/admin/people/student-list/export2'
+  defaults:
+    _controller: '\Drupal\lms_user\Controller\UserController:exportStudentList2'
+    _title: 'Export student list2'
+  requirements:
+    _permission: 'administer site configuration'

@@ -1,0 +1,34 @@
+services:
+  lms_user.manager:
+    class: Drupal\lms_user\UserManager
+    arguments:
+      [
+        '@entity_type.manager',
+        '@lms_commerce.course_manager',
+        '@current_user',
+        '@commerce_cart.cart_provider',
+        '@commerce_cart.cart_manager',
+        '@commerce_cart.order_item_matcher',
+        '@language_manager'
+      ]
+  webform_submitted.twig_extension:
+    class: Drupal\lms_user\TwigExtension\WebformSubmittedExtension
+    tags:
+      - { name: twig.extension }
+  translate_entity_extension.twig_extension:
+    class: Drupal\lms_user\TwigExtension\TranslateEntityExtension
+    tags:
+      - { name: twig.extension }
+  lms_user.route_subscriber:
+    class: Drupal\lms_user\Routing\RouteSubscriber
+    tags:
+      - { name: event_subscriber }
+  lms_user.response_subscriber:
+    class: Drupal\lms_user\EventSubscriber\ResponseSubscriber
+    arguments: ['@current_user', '@current_route_match']
+    tags:
+      - { name: 'event_subscriber' }
+  lms_user.commands:
+    class: Drupal\lms_user\Commands\LmsUserCommands
+    tags:
+      - { name: drush.command }

@@ -1,0 +1,5 @@
+lms_user.settings:
+  title: 'Lms_user strings'
+  base_route_name: lms_user.settings
+  names:
+    - lms_user.settings

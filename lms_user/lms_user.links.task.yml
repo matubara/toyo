@@ -1,0 +1,20 @@
+entity.user_course.list:
+  route_name: entity.user_course.collection
+  base_route: entity.user_course.collection
+  title: List
+
+entity.user_class.list:
+  route_name: entity.user_class.collection
+  base_route: entity.user_class.collection
+  title: List
+
+lms_user.lms_user_config_form:
+  route_name: lms_user.settings
+  title: Settings
+  base_route: lms_user.settings
+
+entity.csv_import_user_course_log.list:
+  route_name: entity.csv_import_user_course_log.collection
+  base_route: entity.commerce_order.collection
+  title: CSV Import Report
+  weight: 99

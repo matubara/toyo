@@ -1,0 +1,108 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the LMS User module.
+ */
+
+use Drupal\Core\Field\BaseFieldDefinition;
+
+/**
+ * Create the 'status' field.
+ */
+function lms_user_update_8001() {
+  $definition_update_manager = \Drupal::entityDefinitionUpdateManager();
+
+  $storage_definition = BaseFieldDefinition::create('boolean')
+    ->setLabel(t('Status'))
+    ->setDisplayOptions('form', [
+      'type' => 'boolean_checkbox',
+      'settings' => [
+        'display_label' => TRUE,
+      ],
+      'weight' => 90,
+    ])
+    ->setDisplayConfigurable('form', TRUE);
+
+  $definition_update_manager->installFieldStorageDefinition('status', 'user_course', 'lms_user', $storage_definition);
+}
+
+/**
+ * Remove the 'data' field.
+ */
+function xxx_lms_user_update_8003() {
+  $update_manager = \Drupal::entityDefinitionUpdateManager();
+  $definition = $update_manager->getFieldStorageDefinition('data', 'user_class');
+  $update_manager->uninstallFieldStorageDefinition($definition);
+}
+
+/**
+ * Create the 'data' field.
+ */
+function lms_user_update_8004() {
+  $definition_update_manager = \Drupal::entityDefinitionUpdateManager();
+
+  $storage_definition = BaseFieldDefinition::create('json');
+
+  $definition_update_manager->installFieldStorageDefinition('data', 'user_class', 'lms_user', $storage_definition);
+}
+
+/**
+ * Create the 'state' field.
+ */
+function lms_user_update_8005() {
+  $definition_update_manager = \Drupal::entityDefinitionUpdateManager();
+
+  $field = BaseFieldDefinition::create('list_string')
+    ->setSettings([
+      'allowed_values' => [
+        'draft' => 'Draft',
+        'cancel_requested' => 'Cancel Request',
+        'refunded' => 'Refunded',
+        'canceled' => 'Canceled',
+        'rejected' => 'Rejected',
+        'completed' => 'Paid',
+      ],
+    ])
+    ->setLabel('State')
+    ->setDescription('Payment state. This will also affect course status if changing directly!')
+    ->setDisplayOptions('form', [
+      'type' => 'options_select',
+    ])
+    ->setDisplayConfigurable('form', TRUE);
+
+  $definition_update_manager->installFieldStorageDefinition('state', 'user_course', 'lms_user', $field);
+}
+
+/**
+ * Add new custom entity for csv_import_user_course_log.
+ */
+function lms_user_update_8006() {
+  $entity_definition = \Drupal::entityTypeManager()->getDefinition('csv_import_user_course_log');
+  \Drupal::entityTypeManager()->clearCachedDefinitions();
+  \Drupal::entityDefinitionUpdateManager()->installEntityType($entity_definition);
+}
+
+/**
+ * Add Import Status Detail field for csv_import_user_course_log.
+ */
+function lms_user_update_8007() {
+  $definition_update_manager = \Drupal::entityDefinitionUpdateManager();
+  $field = BaseFieldDefinition::create('string')
+    ->setSettings([
+      'max_length' => 128,
+      'text_processing' => 0,
+    ])
+    ->setDisplayOptions('view', [
+      'type' => 'string',
+      'weight' => -18,
+    ])
+    ->setDisplayOptions('form', [
+      'type' => 'string_textfield',
+      'weight' => -18,
+    ])
+    ->setDisplayConfigurable('form', TRUE)
+    ->setDisplayConfigurable('view', TRUE);
+
+  $definition_update_manager->installFieldStorageDefinition('import_status_detail', 'csv_import_user_course_log', 'lms_user', $field);
+}

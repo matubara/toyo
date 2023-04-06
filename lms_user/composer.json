@@ -1,0 +1,5 @@
+{
+    "name": "toyo/lms_user",
+    "type": "drupal-custom-module",
+    "require": {}
+}
